@@ -1,0 +1,22 @@
+name: codefacilitators
+
+on:
+  pull_request_target:
+    types: [ opened, reopened ]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  assign-codefacilitators:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Assign codefacilitators
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: .github/CODEFACILITATORS
