@@ -54,5 +54,5 @@ jobs:
       - name: Assign codefacilitators
         uses: ./
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           file: .github/CODEFACILITATORS
