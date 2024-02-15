@@ -1,23 +1,26 @@
-name: 'The name of your action here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'codefacilitators'
+description: 'Assign reviewers to a PR based on the files that were changed.'
+author: '0xtekgrinder'
 
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: 'heart'
-  color: 'red'
+  icon: 'git-pull-request'
+  color: 'gray-dark'
 
 # Define your inputs here.
 inputs:
-  milliseconds:
-    description: 'Your input description here'
+  token:
+    description: 'github token'
     required: true
-    default: '1000'
+  file:
+    description: 'file to be checked'
+    required: true
+    default: '.github/CODEFACILITATORS'
 
 # Define your outputs here.
 outputs:
-  time:
-    description: 'Your output description here'
+  reviewers:
+    description: 'reviewers'
 
 runs:
   using: node20
