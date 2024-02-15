@@ -4,27 +4,26 @@ GitHub Action to assign PR reviewers based on CODEFACAILITATORS file in the repo
 
 This action replicated CODEOWNERS functionality but by only assigning reviewers to PR's.
 
-#### 📋 GitHub Action Inputs
+## 📋 GitHub Action Inputs
 
 **file** - the name of the file to read CODEFACILITATORS from (defaults to ./github/CODEFACILITATORS if not provided)
 
-```
+```yaml
 file: ./github/CODEFACILITATORS
 ```
 
 **token** - the GitHub token to use for authentication
 
-```
+```yaml
 token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-
-#### 📋 Example YAML file configuration
+## 📋 Example YAML file configuration
 
 ```yaml
 name: "Assign Code Facilitators to PRs"
 
-on:  
+on:
   pull_request:
     types: [opened]
 
@@ -38,4 +37,3 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         file: ./github/CODEFACILITATORS
 ```
-
