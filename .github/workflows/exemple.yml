@@ -1,0 +1,24 @@
+name: Ewxemple
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  test-action:
+    name: GitHub Actions Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Assign codefacilitators
+        uses: ./
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          file: .github/CODEFACILITATORS
