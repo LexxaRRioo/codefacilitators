@@ -39,7 +39,7 @@ export async function run(): Promise<void> {
 
     core.debug(`File data: ${data}`)
 
-    const changedFiles: string[] = context?.payload?.pull_request?.changed_files
+    const changedFiles = await getChangedFiles(octokit, context)
     const reviewers = await parseFileData(data, changedFiles, octokit)
 
     await octokit.rest.pulls.requestReviewers({
@@ -100,6 +100,20 @@ async function parseFileData(
   }
 
   return reviewers
+}
+
+async function getChangedFiles(octokit: InstanceType<typeof GitHub>, context: Context): Promise<string[]> {
+  if (!context?.payload?.pull_request?.number || !context?.repo?.owner || !context?.repo?.repo) {
+    throw new Error('Invalid context')
+  }
+
+  const { data: files } = await octokit.rest.pulls.listFiles({
+    owner: context?.repo?.owner,
+    repo: context?.repo?.repo,
+    pull_number: context?.payload?.pull_request?.number,
+  });
+
+  return files.map(file => file.filename)
 }
 
 function hasValidOwnerInContext(context: Context): boolean {
