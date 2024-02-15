@@ -16,10 +16,10 @@ export async function run(): Promise<void> {
     const file: string = core.getInput('file')
 
     if (!githubToken) {
-      core.setFailed(`Required input "token" not provided`)
+      return core.setFailed(`Required input "token" not provided`)
     }
     if (!file) {
-      core.setFailed(`Required input "file" not provided`)
+      return core.setFailed(`Required input "file" not provided`)
     }
     if (!hasValidOwnerInContext(context)) {
       return core.setFailed(`Valid owner is missing from context`)
@@ -41,6 +41,8 @@ export async function run(): Promise<void> {
 
     const changedFiles = await getChangedFiles(octokit, context)
     const reviewers = await parseFileData(data, changedFiles, octokit)
+
+    console.log('reviewers', reviewers)
 
     await octokit.rest.pulls.requestReviewers({
       owner: context?.repo?.owner,
@@ -80,10 +82,17 @@ async function parseFileData(
       }
 
       const isMatch = picomatch(parsedLined[0])
+      console.log('pârsed', parsedLined[0], file, isMatch(file))
       if (isMatch(file)) {
         for (const reviewer of parsedLined.slice(1)) {
-          if (reviewer.includes('/')) {
-            const groupsSplitted = reviewer.split('/')
+          if (!reviewer.startsWith('@')) {
+            core.info(`Skipping invalid reviewer: ${reviewer}`)
+            continue
+          }
+
+          const reviewerName = reviewer.substring(1)
+          if (reviewerName.includes('/')) {
+            const groupsSplitted = reviewerName.split('/')
             const { data: members } = await octokit.rest.teams.listMembersInOrg(
               {
                 org: groupsSplitted[0],
@@ -92,14 +101,17 @@ async function parseFileData(
             )
             reviewers.concat(members.map(member => member.login))
           } else {
-            reviewers.push(reviewer)
+            reviewers.push(reviewerName)
           }
         }
       }
     }
   }
 
-  return reviewers
+  // filter duplicates
+  return reviewers.filter(
+    (reviewer, index) => reviewers.indexOf(reviewer) === index
+  )
 }
 
 async function getChangedFiles(
