@@ -4,7 +4,7 @@ import { Context } from '@actions/github/lib/context'
 import type { GitHub } from '@actions/github/lib/utils'
 import { promises as fs } from 'fs'
 import picomatch from 'picomatch'
-import { minimatch } from 'minimatch'
+import ignore from 'ignore'
 
 /**
  * The main function for the action.
@@ -90,7 +90,8 @@ async function parseFileData(
 
       const isMatch = picomatch(parsedLined[0])
       console.log('pârsed', parsedLined[0], file, isMatch(file))
-      console.log('isMatch', minimatch(file, parsedLined[0]))
+      const ig = ignore().add(parsedLined[0])
+      console.log('isMatch', ig.ignores(file))
       if (isMatch(file)) {
         for (const reviewer of parsedLined.slice(1)) {
           if (!reviewer.startsWith('@')) {
