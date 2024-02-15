@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: "Assign Code Facilitators to PR"
-      uses: 0xtekgrinder/codefacilitator@v1
+      uses: 0xtekgrinder/codefacilitators@v1
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         file: ./github/CODEFACILITATORS
