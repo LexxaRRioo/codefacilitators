@@ -3,7 +3,6 @@ import * as github from '@actions/github'
 import { Context } from '@actions/github/lib/context'
 import type { GitHub } from '@actions/github/lib/utils'
 import { promises as fs } from 'fs'
-import picomatch from 'picomatch'
 import ignore from 'ignore'
 
 /**
@@ -44,8 +43,6 @@ export async function run(): Promise<void> {
     const reviewers = await parseFileData(data, changedFiles, octokit)
     const filteredReviewers = await filterReviewers(reviewers, octokit, context)
 
-    console.log('reviewers', filteredReviewers)
-
     if (filteredReviewers.length === 0) {
       core.info('No reviewers found')
       return
@@ -77,6 +74,8 @@ async function parseFileData(
 
   for (const file of changedFiles) {
     for (const line of data.split('\n')) {
+      let finalReviewers: string[] | undefined
+
       if (line.startsWith('#') || line.trim() === '') {
         core.info(`Skipping comment or empty line: ${line}`)
         continue
@@ -88,11 +87,8 @@ async function parseFileData(
         continue
       }
 
-      const isMatch = picomatch(parsedLined[0])
-      console.log('pârsed', parsedLined[0], file, isMatch(file))
       const ig = ignore().add(parsedLined[0])
-      console.log('isMatch', ig.ignores(file))
-      if (isMatch(file)) {
+      if (ig.ignores(file)) {
         for (const reviewer of parsedLined.slice(1)) {
           if (!reviewer.startsWith('@')) {
             core.info(`Skipping invalid reviewer: ${reviewer}`)
@@ -108,11 +104,15 @@ async function parseFileData(
                 team_slug: groupsSplitted[1]
               }
             )
-            reviewers.concat(members.map(member => member.login))
+            finalReviewers = members.map(member => member.login)
           } else {
-            reviewers.push(reviewerName)
+            finalReviewers = [reviewerName]
           }
         }
+      }
+      if (finalReviewers) {
+        core.info(`Adding reviewers: ${finalReviewers.join(', ')}`)
+        reviewers.concat(finalReviewers)
       }
     }
   }
