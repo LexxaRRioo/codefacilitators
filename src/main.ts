@@ -43,7 +43,12 @@ export async function run(): Promise<void> {
     const reviewers = await parseFileData(data, changedFiles, octokit)
     const filteredReviewers = await filterReviewers(reviewers, octokit, context)
 
-    console.log('reviewers', reviewers)
+    console.log('reviewers', filteredReviewers)
+
+    if (filteredReviewers.length === 0) {
+      core.info('No reviewers found')
+      return
+    }
 
     await octokit.rest.pulls.requestReviewers({
       owner: context?.repo?.owner,
