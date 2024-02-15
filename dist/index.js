@@ -31116,14 +31116,15 @@ async function run() {
         core.debug(`File data: ${data}`);
         const changedFiles = await getChangedFiles(octokit, context);
         const reviewers = await parseFileData(data, changedFiles, octokit);
+        const filteredReviewers = await filterReviewers(reviewers, octokit, context);
         console.log('reviewers', reviewers);
         await octokit.rest.pulls.requestReviewers({
             owner: context?.repo?.owner,
             repo: context?.repo?.repo,
             pull_number: Number(context?.payload?.pull_request?.number),
-            reviewers
+            filteredReviewers
         });
-        core.setOutput('The following reviewers have been requested', reviewers.join(', '));
+        core.setOutput('The following reviewers have been requested', filteredReviewers.join(', '));
     }
     catch (error) {
         // Fail the workflow run if an error occurs
@@ -31169,8 +31170,20 @@ async function parseFileData(data, changedFiles, octokit) {
             }
         }
     }
-    // filter duplicates
-    return reviewers.filter((reviewer, index) => reviewers.indexOf(reviewer) === index);
+    return reviewers;
+}
+async function filterReviewers(reviewers, octokit, context) {
+    if (!context?.payload?.pull_request?.number ||
+        !context?.repo?.owner ||
+        !context?.repo?.repo) {
+        throw new Error('Invalid context');
+    }
+    const { data: pull } = await octokit.rest.pulls.get({
+        owner: context?.repo?.owner,
+        repo: context?.repo?.repo,
+        pull_number: context?.payload?.pull_request?.number
+    });
+    return reviewers.filter((reviewer, index) => reviewers.indexOf(reviewer) === index && reviewer !== pull.user.login);
 }
 async function getChangedFiles(octokit, context) {
     if (!context?.payload?.pull_request?.number ||
