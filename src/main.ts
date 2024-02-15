@@ -102,16 +102,23 @@ async function parseFileData(
   return reviewers
 }
 
-async function getChangedFiles(octokit: InstanceType<typeof GitHub>, context: Context): Promise<string[]> {
-  if (!context?.payload?.pull_request?.number || !context?.repo?.owner || !context?.repo?.repo) {
+async function getChangedFiles(
+  octokit: InstanceType<typeof GitHub>,
+  context: Context
+): Promise<string[]> {
+  if (
+    !context?.payload?.pull_request?.number ||
+    !context?.repo?.owner ||
+    !context?.repo?.repo
+  ) {
     throw new Error('Invalid context')
   }
 
   const { data: files } = await octokit.rest.pulls.listFiles({
     owner: context?.repo?.owner,
     repo: context?.repo?.repo,
-    pull_number: context?.payload?.pull_request?.number,
-  });
+    pull_number: context?.payload?.pull_request?.number
+  })
 
   return files.map(file => file.filename)
 }
