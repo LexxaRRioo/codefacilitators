@@ -72,51 +72,83 @@ async function parseFileData(
 ): Promise<string[]> {
   const reviewers: string[] = []
 
+  core.info('=== Starting parseFileData ===')
+  core.info(`Changed files: ${JSON.stringify(changedFiles)}`)
+
   for (const file of changedFiles) {
+    core.info(`\nProcessing file: ${file}`)
+    
     for (const line of data.split('\n')) {
+      core.info(`\n--- Processing line: "${line}"`)
       let finalReviewers: string[] | undefined
 
       if (line.startsWith('#') || line.trim() === '') {
-        core.info(`Skipping comment or empty line: ${line}`)
+        core.info(`Skipping comment or empty line: "${line}"`)
         continue
       }
 
       const parsedLined = line.replace(/\s+/g, ' ').split(' ')
+      core.info(`Parsed line parts: ${JSON.stringify(parsedLined)}`)
+      
       if (parsedLined.length < 2) {
-        core.info(`Skipping incorrect line: ${line}`)
+        core.info(`Skipping incorrect line: "${line}" (parts: ${parsedLined.length})`)
         continue
       }
 
       const ig = ignore().add(parsedLined[0])
+      core.info(`Checking if ${file} matches pattern "${parsedLined[0]}"`)
       if (ig.ignores(file)) {
+        core.info(`✓ File "${file}" matches pattern "${parsedLined[0]}"`)
+        
         for (const reviewer of parsedLined.slice(1)) {
+          core.info(`Processing reviewer: "${reviewer}"`)
           if (!reviewer.startsWith('@')) {
-            core.info(`Skipping invalid reviewer: ${reviewer}`)
+            core.info(`Skipping invalid reviewer: "${reviewer}" (doesn't start with @)`)
             continue
           }
 
           const reviewerName = reviewer.substring(1)
           if (reviewerName.includes('/')) {
+            core.info(`Getting members for team: ${reviewerName}`)
             const groupsSplitted = reviewerName.split('/')
-            const { data: members } = await octokit.rest.teams.listMembersInOrg(
-              {
-                org: groupsSplitted[0],
-                team_slug: groupsSplitted[1]
+            try {
+              const { data: members } = await octokit.rest.teams.listMembersInOrg(
+                {
+                  org: groupsSplitted[0],
+                  team_slug: groupsSplitted[1]
+                }
+              )
+              finalReviewers = members.map(member => member.login)
+              core.info(`Found team members (${members.length}): ${JSON.stringify(finalReviewers)}`)
+            } catch (error) {
+              core.error(`Failed to get team members: ${error instanceof Error ? error.message : String(error)}`)
+              if (error instanceof Error && 'status' in error) {
+                core.error(`Status: ${(error as any).status}`)
+                core.error(`Response: ${JSON.stringify((error as any).response?.data)}`)
               }
-            )
-            finalReviewers = members.map(member => member.login)
+            }
           } else {
             finalReviewers = [reviewerName]
+            core.info(`Added individual reviewer: ${reviewerName}`)
           }
         }
+      } else {
+        core.info(`✗ File "${file}" does NOT match pattern "${parsedLined[0]}"`)
       }
+      
       if (finalReviewers) {
-        core.info(`Adding reviewers: ${finalReviewers.join(', ')}`)
-        reviewers = reviewers.concat(finalReviewers)
+        core.info(`>>> BEFORE Adding reviewers. Current list: ${JSON.stringify(reviewers)}`)
+        core.info(`>>> Adding reviewers: ${JSON.stringify(finalReviewers)}`)
+        reviewers.push(...finalReviewers)
+        core.info(`>>> AFTER Adding reviewers. New list: ${JSON.stringify(reviewers)}`)
+      } else {
+        core.info('No finalReviewers set for this iteration')
       }
     }
   }
 
+  core.info('=== Finished parseFileData ===')
+  core.info(`Final reviewers list (${reviewers.length}): ${JSON.stringify(reviewers)}`)
   return reviewers
 }
 
