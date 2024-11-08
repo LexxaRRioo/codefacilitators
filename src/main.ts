@@ -11,16 +11,12 @@ import ignore from 'ignore'
  */
 export async function run(): Promise<void> {
   try {
-    core.notice('=== Starting action notice ===')
     core.info('=== Starting action info ===')
-    core.warning('=== Starting action warning ===')
-    core.debug('=== Starting action debug ===')
-    console.log('=== Starting action log ===')
     const context: Context = github?.context
     const githubToken: string = core.getInput('token')
     const file: string = core.getInput('file')
 
-    core.info('Input file path:', file)
+    core.info(`Input file path: ${file}`)
 
     if (!githubToken) {
       return core.setFailed(`Required input "token" not provided`)
@@ -43,23 +39,23 @@ export async function run(): Promise<void> {
 
     // Read the file
     const data = await fs.readFile(file, 'utf-8')
-    core.info('File content:', data)
+    core.info(`File content: ${data}`)
 
     const changedFiles = await getChangedFiles(octokit, context)
-    core.info('Changed files:', changedFiles)
-    
+    core.info(`Changed files: ${changedFiles}`)
+
     const reviewers = await parseFileData(data, changedFiles, octokit)
-    core.info('Parsed reviewers:', reviewers)
-    
+    core.info(`Parsed reviewers: ${reviewers}`)
+
     const filteredReviewers = await filterReviewers(reviewers, octokit, context)
-    core.info('Filtered reviewers:', filteredReviewers)
+    core.info(`Filtered reviewers: ${filteredReviewers}`)
 
     if (filteredReviewers.length === 0) {
       core.info('No reviewers found after filtering')
       return
     }
 
-    core.info('Requesting reviewers:', filteredReviewers)
+    core.info(`Requesting reviewers: ${filteredReviewers}`)
     await octokit.rest.pulls.requestReviewers({
       owner: context?.repo?.owner,
       repo: context?.repo?.repo,
@@ -68,7 +64,7 @@ export async function run(): Promise<void> {
     })
     core.info('Successfully requested reviewers')
 
-} catch (error) {
+  } catch (error) {
     console.error('Action failed with error:', error)
     if (error instanceof Error) core.setFailed(error.message)
   }
@@ -82,45 +78,45 @@ async function parseFileData(
   const reviewers: string[] = []
 
   core.info('=== Starting parseFileData ===')
-  core.info('Changed files:', changedFiles)
+  core.info(`Changed files: ${changedFiles}`)
 
   for (const file of changedFiles) {
-    core.info('\nProcessing file:', file)
-    
+    core.info(`\nProcessing file: ${file}`)
+
     for (const line of data.split('\n')) {
-      core.info('\n--- Processing line:', line)
+      core.info(`\n--- Processing line: ${line}`)
       let finalReviewers: string[] | undefined
 
       if (line.startsWith('#') || line.trim() === '') {
-        core.info('Skipping comment or empty line:', line)
+        core.info(`Skipping comment or empty line: ${line}`)
         continue
       }
 
       const parsedLined = line.replace(/\s+/g, ' ').split(' ')
-      core.info('Parsed line parts:', parsedLined)
-      
+      core.info(`Parsed line parts: ${parsedLined}`)
+
       if (parsedLined.length < 2) {
-        core.info('Skipping incorrect line:', line, '(parts:', parsedLined.length, ')')
+        core.info(`Skipping incorrect line: ${line} (parts: ${parsedLined.length})`)
         continue
       }
 
       const ig = ignore().add(parsedLined[0])
-      core.info('Checking if', file, 'matches pattern', parsedLined[0])
+      core.info(`Checking if ${file} matches pattern ${parsedLined[0]}`)
       if (ig.ignores(file)) {
-        core.info('✓ File', file, 'matches pattern', parsedLined[0])
-        
+        core.info(`✓ File ${file} matches pattern ${parsedLined[0]}`)
+
         for (const reviewer of parsedLined.slice(1)) {
-          core.info('Processing reviewer:', reviewer)
+          core.info(`Processing reviewer: ${reviewer}`)
           if (!reviewer.startsWith('@')) {
-            core.info('Skipping invalid reviewer:', reviewer, '(doesn\'t start with @)')
+            core.info(`Skipping invalid reviewer: ${reviewer} (doesn't start with @)`)
             continue
           }
 
           const reviewerName = reviewer.substring(1)
-          core.info('Reviewer name after @ removal:', reviewerName)
-          
+          core.info(`Reviewer name after @ removal: ${reviewerName}`)
+
           if (reviewerName.includes('/')) {
-            core.info('Getting members for team:', reviewerName)
+            core.info(`Getting members for team: ${reviewerName}`)
             const groupsSplitted = reviewerName.split('/')
             try {
               const { data: members } = await octokit.rest.teams.listMembersInOrg(
@@ -130,7 +126,7 @@ async function parseFileData(
                 }
               )
               finalReviewers = members.map(member => member.login)
-              core.info('Found team members:', finalReviewers)
+              core.info(`Found team members: ${finalReviewers}`)
             } catch (error) {
               console.error('Failed to get team members:', error)
               if (error instanceof Error && 'status' in error) {
@@ -140,18 +136,18 @@ async function parseFileData(
             }
           } else {
             finalReviewers = [reviewerName]
-            core.info('Added individual reviewer:', reviewerName)
+            core.info(`Added individual reviewer: ${reviewerName}`)
           }
         }
       } else {
-        core.info('✗ File', file, 'does NOT match pattern', parsedLined[0])
+        core.info(`✗ File ${file} does NOT match pattern ${parsedLined[0]}`)
       }
-      
+
       if (finalReviewers) {
-        core.info('>>> BEFORE Adding reviewers. Current list:', reviewers)
-        core.info('>>> Adding reviewers:', finalReviewers)
+        core.info(`>>> BEFORE Adding reviewers. Current list: ${reviewers}`)
+        core.info(`>>> Adding reviewers: ${finalReviewers}`)
         reviewers.push(...finalReviewers)
-        core.info('>>> AFTER Adding reviewers. New list:', reviewers)
+        core.info(`>>> AFTER Adding reviewers. New list: ${reviewers}`)
       } else {
         core.info('No finalReviewers set for this iteration')
       }
@@ -159,7 +155,7 @@ async function parseFileData(
   }
 
   core.info('=== Finished parseFileData ===')
-  core.info('Final reviewers list:', reviewers)
+  core.info(`Final reviewers list: ${reviewers}`)
   return reviewers
 }
 
@@ -176,20 +172,20 @@ async function filterReviewers(
     throw new Error('Invalid context')
   }
   core.info('=== Starting filterReviewers ===')
-  core.info('Input reviewers:', reviewers)
+  core.info(`Input reviewers: ${reviewers}`)
 
   const { data: pull } = await octokit.rest.pulls.get({
     owner: context?.repo?.owner,
     repo: context?.repo?.repo,
     pull_number: context?.payload?.pull_request?.number
   })
-  core.info('PR author:', pull.user.login)
+  core.info(`PR author: ${pull.user.login}`)
 
   const filtered = reviewers.filter(
     (reviewer, index) =>
       reviewers.indexOf(reviewer) === index && reviewer !== pull.user.login
   )
-  core.info('Filtered reviewers:', filtered)
+  core.info(`Filtered reviewers: ${filtered}`)
   return filtered
 }
 
