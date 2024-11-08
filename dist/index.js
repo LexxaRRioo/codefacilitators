@@ -29591,11 +29591,10 @@ const ignore_1 = __importDefault(__nccwpck_require__(1230));
  */
 async function run() {
     try {
-        core.info('=== Starting action info ===');
         const context = github?.context;
         const githubToken = core.getInput('token');
         const file = core.getInput('file');
-        core.info(`Input file path: ${file}`);
+        const addGroupsDirectly = core.getInput('add_groups_directly') === 'true';
         if (!githubToken) {
             return core.setFailed(`Required input "token" not provided`);
         }
@@ -29615,10 +29614,9 @@ async function run() {
         const octokit = github.getOctokit(githubToken);
         // Read the file
         const data = await fs_1.promises.readFile(file, 'utf-8');
-        core.info(`File content: ${data}`);
         const changedFiles = await getChangedFiles(octokit, context);
         core.info(`Changed files: ${changedFiles}`);
-        const reviewers = await parseFileData(data, changedFiles, octokit);
+        const reviewers = await parseFileData(data, changedFiles, octokit, addGroupsDirectly);
         core.info(`Parsed reviewers: ${reviewers}`);
         const filteredReviewers = await filterReviewers(reviewers, octokit, context);
         core.info(`Filtered reviewers: ${filteredReviewers}`);
@@ -29626,12 +29624,15 @@ async function run() {
             core.info('No reviewers found after filtering');
             return;
         }
-        core.info(`Requesting reviewers: ${filteredReviewers}`);
+        const { reviewersList, teamReviewersList } = separateReviewers(filteredReviewers);
+        core.info(`Requesting reviewers: ${reviewersList}`);
+        core.info(`Requesting team reviewers: ${teamReviewersList}`);
         await octokit.rest.pulls.requestReviewers({
             owner: context?.repo?.owner,
             repo: context?.repo?.repo,
             pull_number: Number(context?.payload?.pull_request?.number),
-            reviewers: filteredReviewers
+            reviewers: reviewersList,
+            team_reviewers: teamReviewersList
         });
         core.info('Successfully requested reviewers');
     }
@@ -29642,27 +29643,25 @@ async function run() {
     }
 }
 exports.run = run;
-async function parseFileData(data, changedFiles, octokit) {
+async function parseFileData(data, changedFiles, octokit, addGroupsDirectly) {
     const reviewers = [];
-    core.info('=== Starting parseFileData ===');
+    core.info('=== Starting parse File Data ===');
     core.info(`Changed files: ${changedFiles}`);
+    core.info(`Add groups directly mode: ${addGroupsDirectly}`);
     for (const file of changedFiles) {
         core.info(`\nProcessing file: ${file}`);
         for (const line of data.split('\n')) {
-            core.info(`\n--- Processing line: ${line}`);
             let finalReviewers;
             if (line.startsWith('#') || line.trim() === '') {
                 core.info(`Skipping comment or empty line: ${line}`);
                 continue;
             }
             const parsedLined = line.replace(/\s+/g, ' ').split(' ');
-            core.info(`Parsed line parts: ${parsedLined}`);
             if (parsedLined.length < 2) {
                 core.info(`Skipping incorrect line: ${line} (parts: ${parsedLined.length})`);
                 continue;
             }
             const ig = (0, ignore_1.default)().add(parsedLined[0]);
-            core.info(`Checking if ${file} matches pattern ${parsedLined[0]}`);
             if (ig.ignores(file)) {
                 core.info(`✓ File ${file} matches pattern ${parsedLined[0]}`);
                 for (const reviewer of parsedLined.slice(1)) {
@@ -29672,23 +29671,29 @@ async function parseFileData(data, changedFiles, octokit) {
                         continue;
                     }
                     const reviewerName = reviewer.substring(1);
-                    core.info(`Reviewer name after @ removal: ${reviewerName}`);
                     if (reviewerName.includes('/')) {
-                        core.info(`Getting members for team: ${reviewerName}`);
-                        const groupsSplitted = reviewerName.split('/');
-                        try {
-                            const { data: members } = await octokit.rest.teams.listMembersInOrg({
-                                org: groupsSplitted[0],
-                                team_slug: groupsSplitted[1]
-                            });
-                            finalReviewers = members.map(member => member.login);
-                            core.info(`Found team members: ${finalReviewers}`);
+                        if (addGroupsDirectly) {
+                            // Add the team directly as a reviewer
+                            finalReviewers = [reviewerName];
+                            core.info(`Added team directly: ${reviewerName}`);
                         }
-                        catch (error) {
-                            console.error('Failed to get team members:', error);
-                            if (error instanceof Error && 'status' in error) {
-                                console.error('Status:', error.status);
-                                console.error('Response:', error.response?.data);
+                        else {
+                            // Original behavior: fetch team members
+                            const groupsSplitted = reviewerName.split('/');
+                            try {
+                                const { data: members } = await octokit.rest.teams.listMembersInOrg({
+                                    org: groupsSplitted[0],
+                                    team_slug: groupsSplitted[1]
+                                });
+                                finalReviewers = members.map(member => member.login);
+                                core.info(`Found team members: ${finalReviewers}`);
+                            }
+                            catch (error) {
+                                console.error('Failed to get team members:', error);
+                                if (error instanceof Error && 'status' in error) {
+                                    console.error('Status:', error.status);
+                                    console.error('Response:', error.response?.data);
+                                }
                             }
                         }
                     }
@@ -29702,19 +29707,29 @@ async function parseFileData(data, changedFiles, octokit) {
                 core.info(`✗ File ${file} does NOT match pattern ${parsedLined[0]}`);
             }
             if (finalReviewers) {
-                core.info(`>>> BEFORE Adding reviewers. Current list: ${reviewers}`);
-                core.info(`>>> Adding reviewers: ${finalReviewers}`);
+                core.info(`Adding reviewers: ${finalReviewers}`);
                 reviewers.push(...finalReviewers);
-                core.info(`>>> AFTER Adding reviewers. New list: ${reviewers}`);
             }
             else {
                 core.info('No finalReviewers set for this iteration');
             }
         }
     }
-    core.info('=== Finished parseFileData ===');
-    core.info(`Final reviewers list: ${reviewers}`);
+    core.info('=== Finishing parse File Data ===');
     return reviewers;
+}
+function separateReviewers(reviewers) {
+    const reviewersList = [];
+    const teamReviewersList = [];
+    for (const reviewer of reviewers) {
+        if (reviewer.includes('/')) {
+            teamReviewersList.push(reviewer.split('/')[1]); // Only add the team slug part
+        }
+        else {
+            reviewersList.push(reviewer);
+        }
+    }
+    return { reviewersList, teamReviewersList };
 }
 async function filterReviewers(reviewers, octokit, context) {
     if (!context?.payload?.pull_request?.number ||
@@ -29722,8 +29737,6 @@ async function filterReviewers(reviewers, octokit, context) {
         !context?.repo?.repo) {
         throw new Error('Invalid context');
     }
-    core.info('=== Starting filterReviewers ===');
-    core.info(`Input reviewers: ${reviewers}`);
     const { data: pull } = await octokit.rest.pulls.get({
         owner: context?.repo?.owner,
         repo: context?.repo?.repo,
@@ -29731,7 +29744,7 @@ async function filterReviewers(reviewers, octokit, context) {
     });
     core.info(`PR author: ${pull.user.login}`);
     const filtered = reviewers.filter((reviewer, index) => reviewers.indexOf(reviewer) === index && reviewer !== pull.user.login);
-    core.info(`Filtered reviewers: ${filtered}`);
+    core.info(`Filtered reviewers without PR author: ${filtered}`);
     return filtered;
 }
 async function getChangedFiles(octokit, context) {

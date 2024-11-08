@@ -16,6 +16,10 @@ inputs:
     description: 'file to be checked'
     required: true
     default: '.github/CODEFACILITATORS'
+  add_groups_directly:
+    description: 'If true, adds teams as reviewers directly instead of their members'
+    required: false
+    default: 'false'
 
 # Define your outputs here.
 outputs:
