@@ -52,7 +52,7 @@ export async function run(): Promise<void> {
       owner: context?.repo?.owner,
       repo: context?.repo?.repo,
       pull_number: Number(context?.payload?.pull_request?.number),
-      filteredReviewers
+      reviewers: filteredReviewers
     })
 
     core.setOutput(
@@ -112,7 +112,7 @@ async function parseFileData(
       }
       if (finalReviewers) {
         core.info(`Adding reviewers: ${finalReviewers.join(', ')}`)
-        reviewers.concat(finalReviewers)
+        reviewers = reviewers.concat(finalReviewers)
       }
     }
   }
